@@ -45,17 +45,19 @@ const AttendanceScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFF",
+    backgroundColor: "#FFFFFF",
   },
   header: {
     padding: 20,
+    backgroundColor: "#FFFFFF",
   },
   title: {
     fontSize: 32,
     fontWeight: "bold",
+    color: "#333333",
   },
   date: {
-    color: "#666",
+    color: "#666666",
     marginTop: 4,
   },
   summaryContainer: {
@@ -63,36 +65,36 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 0,
     gap: 12,
+    backgroundColor: "#FFFFFF",
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    // elevation: 2,
-    // elevation: 0.2,
-    borderWidth: 0.15,
-    borderColor: "grey",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   summaryValue: {
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 4,
+    color: "#333333",
   },
   summaryLabel: {
     fontSize: 12,
-    color: "#666",
+    color: "#666666",
   },
   presentText: {
-    color: "#4CAF50",
+    color: "#22C55E", // Lighter green
   },
   absentText: {
-    color: "#F44336",
+    color: "#EF4444", // Lighter red
   },
 });
 
