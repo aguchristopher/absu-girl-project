@@ -1,14 +1,16 @@
-import QRCode from "qrcode.react";
+import QRCode, { QRCodeCanvas } from "qrcode.react";
 
 export function QRModal({ isOpen, onClose, staff }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl p-6 max-w-sm w-full">
+    <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center p-4 z-50 transition-all">
+      <div className="bg-white/90 backdrop-blur rounded-xl p-6 max-w-sm w-full shadow-xl transform transition-all">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg font-semibold">{staff.name}</h3>
+            <h3 className="text-lg font-semibold text-gray-600">
+              {staff.name}
+            </h3>
             <p className="text-sm text-gray-600">{staff.id}</p>
           </div>
           <button
@@ -20,7 +22,7 @@ export function QRModal({ isOpen, onClose, staff }) {
         </div>
 
         <div className="flex justify-center mb-4">
-          <QRCode
+          <QRCodeCanvas
             value={JSON.stringify({
               id: staff.id,
               name: staff.name,
