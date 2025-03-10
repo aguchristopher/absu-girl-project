@@ -1,19 +1,56 @@
+"use client";
+import { useState, useEffect } from "react";
+import { fetchStaffList, fetchTodayAttendance } from "@/services/api";
+
 export function AttendanceSummaryCards() {
+  const [stats, setStats] = useState({
+    total: 0,
+    present: 0,
+    absent: 0,
+  });
+
+  useEffect(() => {
+    async function loadStats() {
+      try {
+        // Fetch both staff list and attendance data
+        const [staffList, attendance] = await Promise.all([
+          fetchStaffList(),
+          fetchTodayAttendance(),
+        ]);
+
+        const total = staffList.length;
+        const present = attendance.filter(
+          (record) => record.status === "Present"
+        ).length;
+
+        setStats({
+          total,
+          present,
+          absent: total - present,
+        });
+      } catch (error) {
+        console.error("Failed to load attendance stats:", error);
+      }
+    }
+
+    loadStats();
+  }, []);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
       <SummaryCard
         title="Total Staff"
-        value={24}
+        value={stats.total}
         valueClassName="text-blue-600"
       />
       <SummaryCard
         title="Present Today"
-        value={18}
+        value={stats.present}
         valueClassName="text-green-600"
       />
       <SummaryCard
         title="Absent Today"
-        value={6}
+        value={stats.absent}
         valueClassName="text-red-600"
       />
     </div>
