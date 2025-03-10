@@ -1,27 +1,89 @@
 // @ts-nocheck
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useState } from "react";
-import { FlatList, StyleSheet, View, Text } from "react-native";
+import {
+  FlatList,
+  StyleSheet,
+  View,
+  Text,
+  ActivityIndicator,
+} from "react-native";
 
 import { STAFF_LIST, Staff } from "@/constants/Staff";
 
+const API_URL = "http://localhost:5000/api"; // You should move this to env config
+
 export function AttendanceList() {
-  const [attendance, setAttendance] = useState<Record<string, boolean>>({});
+  const [staffList, setStaffList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    loadAttendance();
+    loadAttendanceData();
   }, []);
 
-  const loadAttendance = async () => {
+  const loadAttendanceData = async () => {
     try {
-      const data = await AsyncStorage.getItem("attendance");
-      if (data) {
-        setAttendance(JSON.parse(data));
+      const [staffResponse, attendanceResponse] = await Promise.all([
+        fetch(`${API_URL}/staff`),
+        fetch(`${API_URL}/attendance/today`),
+      ]);
+
+      if (!staffResponse.ok || !attendanceResponse.ok) {
+        throw new Error("Failed to fetch data");
       }
+
+      const staff = await staffResponse.json();
+      const attendance = await attendanceResponse.json();
+
+      // Merge staff and attendance data
+      const staffWithAttendance = staff.map((person) => {
+        const todayRecord = attendance.find((a) => a.staffId === person._id);
+        return {
+          ...person,
+          present: !!todayRecord,
+        };
+      });
+
+      setStaffList(staffWithAttendance);
+
+      // Also save to AsyncStorage for offline access
+      await AsyncStorage.setItem(
+        "attendance",
+        JSON.stringify(
+          Object.fromEntries(staffWithAttendance.map((s) => [s._id, s.present]))
+        )
+      );
     } catch (error) {
-      console.error("Error loading attendance:", error);
+      console.error("Error loading data:", error);
+      setError(error.message);
+
+      // Fallback to local storage if network fails
+      const localData = await AsyncStorage.getItem("attendance");
+      if (localData) {
+        const attendance = JSON.parse(localData);
+        // ...handle local data...
+      }
+    } finally {
+      setLoading(false);
     }
   };
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Error loading attendance data</Text>
+      </View>
+    );
+  }
 
   const renderItem = ({ item }: { item: Staff }) => (
     <View style={styles.card}>
@@ -42,16 +104,16 @@ export function AttendanceList() {
       <View
         style={[
           styles.statusBadge,
-          attendance[item.id] ? styles.presentBadge : styles.absentBadge,
+          item.present ? styles.presentBadge : styles.absentBadge,
         ]}
       >
         <Text
           style={[
             styles.statusText,
-            attendance[item.id] ? styles.presentText : styles.absentText,
+            item.present ? styles.presentText : styles.absentText,
           ]}
         >
-          {attendance[item.id] ? "Present" : "Absent"}
+          {item.present ? "Present" : "Absent"}
         </Text>
       </View>
     </View>
@@ -59,7 +121,7 @@ export function AttendanceList() {
 
   return (
     <FlatList
-      data={STAFF_LIST}
+      data={staffList}
       renderItem={renderItem}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.list}
@@ -138,5 +200,14 @@ const styles = StyleSheet.create({
   },
   absentText: {
     color: "#B71C1C",
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  errorText: {
+    color: "red",
+    fontSize: 16,
   },
 });

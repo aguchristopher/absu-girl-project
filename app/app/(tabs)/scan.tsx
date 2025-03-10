@@ -21,6 +21,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { STAFF_LIST } from "@/constants/Staff";
 
+const API_URL = "http://localhost:5000/api"; // You should move this to env config
+
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -50,25 +52,42 @@ export default function ScanScreen() {
   const handleBarCodeScanned = async ({ data }: BarCodeScanningResult) => {
     setScanned(true);
     setLoading(true);
-    const staff = STAFF_LIST.find((s) => s.id === data);
 
-    if (staff) {
-      try {
-        const existingData = await AsyncStorage.getItem("attendance");
-        const attendance = existingData ? JSON.parse(existingData) : {};
-        attendance[data] = true;
-        await AsyncStorage.setItem("attendance", JSON.stringify(attendance));
-        setLoading(false);
-        router.push("/attendance");
-      } catch (error) {
-        console.error("Error saving attendance:", error);
-        Alert.alert("Error", "Failed to save attendance. Please try again.");
-        setLoading(false);
+    try {
+      // Parse the QR code data
+      const staffData = JSON.parse(data);
+
+      // Mark attendance in the backend
+      const response = await fetch(`${API_URL}/attendance`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          staffId: staffData.id,
+          status: "Present",
+          checkIn: new Date().toLocaleTimeString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to mark attendance");
       }
-    } else {
-      Alert.alert("Invalid", "Invalid staff ID");
+
+      // Save to local storage for offline access
+      const existingData = await AsyncStorage.getItem("attendance");
+      const attendance = existingData ? JSON.parse(existingData) : {};
+      attendance[staffData.id] = true;
+      await AsyncStorage.setItem("attendance", JSON.stringify(attendance));
+
       setLoading(false);
-      // Auto reset scanning state after a short delay
+      Alert.alert("Success", "Attendance marked successfully", [
+        { text: "OK", onPress: () => router.push("/attendance") },
+      ]);
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      Alert.alert("Error", "Failed to mark attendance. Please try again.");
+      setLoading(false);
       setTimeout(() => setScanned(false), 1500);
     }
   };
