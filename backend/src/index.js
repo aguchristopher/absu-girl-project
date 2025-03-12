@@ -18,7 +18,7 @@ app.use("/api/attendance", attendanceRoutes);
 
 // Connect to MongoDB
 mongoose
-  .connect(process.env.MONGODB_URI)
+  .connect("mongodb+srv://hyperswiftshipping:123@cluster0.5ix5kqv.mongodb.net/staff_attendance?retryWrites=true&w=majority")
   .then(() => console.log("Connected to MongoDB"))
   .catch((error) => console.error("MongoDB connection error:", error));
 
