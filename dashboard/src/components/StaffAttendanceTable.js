@@ -74,7 +74,7 @@ export function StaffAttendanceTable() {
     
     try {
       // Mark attendance in the backend using the provided endpoint
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/attendance`, {
+      const response = await fetch(`https://absu-girl-project-1.onrender.com/api/attendance`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
