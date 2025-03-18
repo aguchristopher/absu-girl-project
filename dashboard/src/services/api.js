@@ -14,6 +14,14 @@ export async function fetchTodayAttendance() {
 }
 
 export async function markAttendance(staffId, status, checkIn) {
+  const formattedCheckIn =
+    checkIn ||
+    new Date().toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
   const response = await fetch(`${API_URL}/attendance`, {
     method: "POST",
     headers: {
@@ -22,10 +30,16 @@ export async function markAttendance(staffId, status, checkIn) {
     body: JSON.stringify({
       staffId,
       status,
-      checkIn,
+      checkIn: formattedCheckIn,
+      date: new Date().toISOString().split("T")[0],
     }),
   });
-  if (!response.ok) throw new Error("Failed to mark attendance");
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message);
+  }
+
   return response.json();
 }
 

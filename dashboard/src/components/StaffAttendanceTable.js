@@ -23,13 +23,28 @@ export function StaffAttendanceTable() {
           fetchTodayAttendance(),
         ]);
 
-        // Merge attendance data with staff data
+        // Get stored attendance history
+        const attendanceHistory = JSON.parse(
+          localStorage.getItem("attendanceHistory") || "{}"
+        );
+        const today = new Date().toISOString().split("T")[0];
+
+        // Merge attendance data with staff data and stored history
         const staffWithAttendance = staff.map((person) => {
           const todayRecord = attendance.find((a) => a.staffId === person._id);
+          const storedAttendance = attendanceHistory[person._id];
+
+          // Use stored or API attendance data
+          const isPresent =
+            todayRecord ||
+            (storedAttendance && storedAttendance.date === today);
+
           return {
             ...person,
-            status: todayRecord ? todayRecord.status : "Absent",
-            checkIn: todayRecord ? todayRecord.checkIn : "-",
+            status: isPresent ? "Present" : "Absent",
+            checkIn: isPresent
+              ? todayRecord?.checkIn || storedAttendance?.checkIn
+              : "-",
           };
         });
 
@@ -204,20 +219,17 @@ export function StaffAttendanceTable() {
                   {person.checkIn}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {person.status !== "Present" &&
-                  !hasMarkedAttendanceToday(person._id) ? (
+                  {person.status === "Present" ? (
+                    <span className="text-xs text-gray-500">
+                      Already marked
+                    </span>
+                  ) : (
                     <button
                       onClick={(e) => handleMarkPresent(person._id, e)}
                       className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
                     >
                       Mark Present
                     </button>
-                  ) : (
-                    person.status === "Present" && (
-                      <span className="text-xs text-gray-500">
-                        Already marked
-                      </span>
-                    )
                   )}
                 </td>
               </tr>

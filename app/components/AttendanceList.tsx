@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   FlatList,
   StyleSheet,
@@ -7,10 +7,8 @@ import {
   Text,
   ActivityIndicator,
   Pressable,
-  RefreshControl,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
 
 const API_URL = "https://absu-girl-project-1.onrender.com/api";
 
@@ -18,13 +16,9 @@ export function AttendanceList() {
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({});
 
   useEffect(() => {
     loadAttendanceData();
-    loadOfflineData();
-    syncOfflineAttendance();
   }, []);
 
   const loadAttendanceData = async () => {
@@ -70,94 +64,8 @@ export function AttendanceList() {
     }
   };
 
-  const loadOfflineData = async () => {
-    try {
-      const offlineData = await AsyncStorage.getItem("offlineAttendance");
-      if (offlineData) {
-        setSyncStatus(JSON.parse(offlineData));
-      }
-    } catch (error) {
-      console.error("Error loading offline data:", error);
-    }
-  };
-
-  const syncOfflineAttendance = async () => {
-    try {
-      const offlineData = await AsyncStorage.getItem("offlineAttendance");
-      if (!offlineData) return;
-
-      const attendance = JSON.parse(offlineData);
-      const unsyncedEntries = Object.entries(attendance).filter(
-        ([_, data]) => !data.synced
-      );
-
-      for (const [staffId, data] of unsyncedEntries) {
-        try {
-          const response = await fetch(`${API_URL}/attendance`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              staffId,
-              status: "Present",
-              checkIn: data.timestamp,
-            }),
-          });
-
-          if (response.ok) {
-            setSyncStatus((prev) => ({
-              ...prev,
-              [staffId]: { ...data, synced: true },
-            }));
-            await AsyncStorage.setItem(
-              "offlineAttendance",
-              JSON.stringify({
-                ...attendance,
-                [staffId]: { ...data, synced: true },
-              })
-            );
-          }
-        } catch (error) {
-          console.error("Sync failed for staff:", staffId, error);
-        }
-      }
-    } catch (error) {
-      console.error("Sync error:", error);
-    }
-  };
-
-  const onRefresh = React.useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await loadAttendanceData();
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  const hasMarkedAttendanceToday = async (staffId) => {
-    try {
-      const history = await AsyncStorage.getItem("attendanceHistory");
-      const attendanceHistory = history ? JSON.parse(history) : {};
-      const today = new Date().toISOString().split("T")[0];
-      return attendanceHistory[staffId] === today;
-    } catch (error) {
-      console.error("Error checking attendance:", error);
-      return false;
-    }
-  };
-
   const handleMarkPresent = async (staffId) => {
     try {
-      const alreadyMarked = await hasMarkedAttendanceToday(staffId);
-      if (alreadyMarked) return;
-
-      const now = new Date();
-      const checkInTime = now.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-
       const response = await fetch(`${API_URL}/attendance`, {
         method: "POST",
         headers: {
@@ -166,33 +74,25 @@ export function AttendanceList() {
         body: JSON.stringify({
           staffId,
           status: "Present",
-          checkIn: checkInTime,
-          date: now.toISOString().split("T")[0],
+          checkIn: new Date().toLocaleTimeString(),
         }),
       });
 
       if (!response.ok) throw new Error("Failed to mark attendance");
 
-      // Save to AsyncStorage with check-in time
-      const history = await AsyncStorage.getItem("attendanceHistory");
-      const attendanceHistory = history ? JSON.parse(history) : {};
-      attendanceHistory[staffId] = {
-        date: now.toISOString().split("T")[0],
-        checkIn: checkInTime,
-      };
-      await AsyncStorage.setItem(
-        "attendanceHistory",
-        JSON.stringify(attendanceHistory)
-      );
-
-      // Update local state with check-in time
+      // Update local state to match dashboard behavior
       setStaffList((currentList) =>
         currentList.map((person) => {
           if (person._id === staffId) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
             return {
               ...person,
               status: "Present",
-              checkIn: checkInTime,
+              checkIn: timeString,
             };
           }
           return person;
@@ -203,65 +103,42 @@ export function AttendanceList() {
     }
   };
 
-  const renderItem = ({ item }) => {
-    const [canMarkAttendance, setCanMarkAttendance] = useState(true);
+  const renderItem = ({ item }) => (
+    <Pressable
+      style={styles.card}
+      onPress={() => item.status !== "Present" && handleMarkPresent(item._id)}
+    >
+      <View style={styles.cardContent}>
+        <View style={styles.nameSection}>
+          <Text style={styles.name}>{item.name}</Text>
+          <Text style={styles.department}>{item.department}</Text>
+        </View>
 
-    useEffect(() => {
-      hasMarkedAttendanceToday(item._id).then((marked) =>
-        setCanMarkAttendance(!marked)
-      );
-    }, [item._id]);
-
-    return (
-      <Pressable
-        style={[styles.card, !canMarkAttendance && styles.cardDisabled]}
-        onPress={() =>
-          canMarkAttendance &&
-          item.status !== "Present" &&
-          handleMarkPresent(item._id)
-        }
-        disabled={!canMarkAttendance}
-      >
-        <View style={styles.cardContent}>
-          <View style={styles.nameSection}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.department}>{item.department}</Text>
-          </View>
-
-          <View style={styles.statusSection}>
-            {syncStatus[item._id] && !syncStatus[item._id].synced && (
-              <Ionicons
-                name="sync"
-                size={16}
-                color="#6B7280"
-                style={styles.syncIcon}
-              />
-            )}
-            <View
+        <View style={styles.statusSection}>
+          <View
+            style={[
+              styles.statusBadge,
+              item.status === "Present"
+                ? styles.presentBadge
+                : styles.absentBadge,
+            ]}
+          >
+            <Text
               style={[
-                styles.statusBadge,
+                styles.statusText,
                 item.status === "Present"
-                  ? styles.presentBadge
-                  : styles.absentBadge,
+                  ? styles.presentText
+                  : styles.absentText,
               ]}
             >
-              <Text
-                style={[
-                  styles.statusText,
-                  item.status === "Present"
-                    ? styles.presentText
-                    : styles.absentText,
-                ]}
-              >
-                {item.status}
-              </Text>
-            </View>
-            <Text style={styles.checkInText}>{item.checkIn}</Text>
+              {item.status}
+            </Text>
           </View>
+          <Text style={styles.checkInText}>{item.checkIn}</Text>
         </View>
-      </Pressable>
-    );
-  };
+      </View>
+    </Pressable>
+  );
 
   if (loading) {
     return (
@@ -286,9 +163,6 @@ export function AttendanceList() {
       keyExtractor={(item) => item._id}
       contentContainerStyle={styles.list}
       showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
     />
   );
 }
@@ -309,9 +183,6 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderWidth: 1,
     borderColor: "#E5E7EB",
-  },
-  cardDisabled: {
-    opacity: 0.6,
   },
   cardContent: {
     flexDirection: "row",
@@ -368,10 +239,5 @@ const styles = StyleSheet.create({
   errorText: {
     color: "#E02424",
     fontSize: 16,
-  },
-  syncIcon: {
-    position: "absolute",
-    top: -8,
-    right: -8,
   },
 });
