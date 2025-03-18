@@ -69,41 +69,57 @@ export function StaffAttendanceTable() {
   };
 
   const handleMarkPresent = async (staffId, e) => {
-    // Stop propagation to prevent opening QR modal
     e.stopPropagation();
-    
+
     try {
-      // Mark attendance in the backend using the provided endpoint
-      const response = await fetch(`https://absu-girl-project-1.onrender.com/api/attendance`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          staffId: staffId,
-          status: "Present",
-          checkIn: new Date().toLocaleTimeString(),
-        }),
+      const now = new Date();
+      const checkInTime = now.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
       });
+
+      const response = await fetch(
+        `https://absu-girl-project-1.onrender.com/api/attendance`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            staffId: staffId,
+            status: "Present",
+            checkIn: checkInTime,
+            date: now.toISOString().split("T")[0], // Add date to track daily attendance
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to mark attendance");
       }
-      
-      // Update the staff list to reflect the change
-      setStaffList((currentStaffList) =>
-        currentStaffList.map((person) => {
+
+      // Save to localStorage with check-in time
+      const attendanceHistory = JSON.parse(
+        localStorage.getItem("attendanceHistory") || "{}"
+      );
+      attendanceHistory[staffId] = {
+        date: now.toISOString().split("T")[0],
+        checkIn: checkInTime,
+      };
+      localStorage.setItem(
+        "attendanceHistory",
+        JSON.stringify(attendanceHistory)
+      );
+
+      // Update UI with check-in time
+      setStaffList((currentList) =>
+        currentList.map((person) => {
           if (person._id === staffId) {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString([], { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            });
-            
             return {
               ...person,
               status: "Present",
-              checkIn: timeString,
+              checkIn: checkInTime,
             };
           }
           return person;
@@ -112,6 +128,15 @@ export function StaffAttendanceTable() {
     } catch (error) {
       console.error("Failed to mark staff present:", error);
     }
+  };
+
+  // Add function to check if staff member already marked attendance today
+  const hasMarkedAttendanceToday = (staffId) => {
+    const attendanceHistory = JSON.parse(
+      localStorage.getItem("attendanceHistory") || "{}"
+    );
+    const today = new Date().toISOString().split("T")[0];
+    return attendanceHistory[staffId] === today;
   };
 
   if (loading) return <div className="text-center p-4">Loading...</div>;
@@ -179,13 +204,20 @@ export function StaffAttendanceTable() {
                   {person.checkIn}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {person.status !== "Present" && (
+                  {person.status !== "Present" &&
+                  !hasMarkedAttendanceToday(person._id) ? (
                     <button
                       onClick={(e) => handleMarkPresent(person._id, e)}
                       className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
                     >
                       Mark Present
                     </button>
+                  ) : (
+                    person.status === "Present" && (
+                      <span className="text-xs text-gray-500">
+                        Already marked
+                      </span>
+                    )
                   )}
                 </td>
               </tr>

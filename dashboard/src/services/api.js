@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://absu-girl-project-1.onrender.com/api";
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  "https://absu-girl-project-1.onrender.com/api";
 export async function fetchStaffList() {
   const response = await fetch(`${API_URL}/staff`);
   if (!response.ok) throw new Error("Failed to fetch staff");
