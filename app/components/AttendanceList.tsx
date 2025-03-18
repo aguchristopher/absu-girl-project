@@ -1,17 +1,16 @@
 // @ts-nocheck
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FlatList,
   StyleSheet,
   View,
   Text,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { STAFF_LIST, Staff } from "@/constants/Staff";
-
-const API_URL = "http://localhost:5000/api"; // You should move this to env config
+const API_URL = "https://absu-girl-project-1.onrender.com/api";
 
 export function AttendanceList() {
   const [staffList, setStaffList] = useState([]);
@@ -36,38 +35,110 @@ export function AttendanceList() {
       const staff = await staffResponse.json();
       const attendance = await attendanceResponse.json();
 
-      // Merge staff and attendance data
+      // Match dashboard format - merge staff and attendance data
       const staffWithAttendance = staff.map((person) => {
         const todayRecord = attendance.find((a) => a.staffId === person._id);
         return {
           ...person,
-          present: !!todayRecord,
+          status: todayRecord ? todayRecord.status : "Absent",
+          checkIn: todayRecord ? todayRecord.checkIn : "-",
         };
       });
 
       setStaffList(staffWithAttendance);
-
-      // Also save to AsyncStorage for offline access
       await AsyncStorage.setItem(
-        "attendance",
-        JSON.stringify(
-          Object.fromEntries(staffWithAttendance.map((s) => [s._id, s.present]))
-        )
+        "staffList",
+        JSON.stringify(staffWithAttendance)
       );
     } catch (error) {
       console.error("Error loading data:", error);
       setError(error.message);
 
-      // Fallback to local storage if network fails
-      const localData = await AsyncStorage.getItem("attendance");
-      if (localData) {
-        const attendance = JSON.parse(localData);
-        // ...handle local data...
+      // Fallback to cached data
+      const cached = await AsyncStorage.getItem("staffList");
+      if (cached) {
+        setStaffList(JSON.parse(cached));
       }
     } finally {
       setLoading(false);
     }
   };
+
+  const handleMarkPresent = async (staffId) => {
+    try {
+      const response = await fetch(`${API_URL}/attendance`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          staffId,
+          status: "Present",
+          checkIn: new Date().toLocaleTimeString(),
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to mark attendance");
+
+      // Update local state to match dashboard behavior
+      setStaffList((currentList) =>
+        currentList.map((person) => {
+          if (person._id === staffId) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+            return {
+              ...person,
+              status: "Present",
+              checkIn: timeString,
+            };
+          }
+          return person;
+        })
+      );
+    } catch (error) {
+      console.error("Failed to mark present:", error);
+    }
+  };
+
+  const renderItem = ({ item }) => (
+    <Pressable
+      style={styles.card}
+      onPress={() => item.status !== "Present" && handleMarkPresent(item._id)}
+    >
+      <View style={styles.cardContent}>
+        <View style={styles.nameSection}>
+          <Text style={styles.name}>{item.name}</Text>
+          <Text style={styles.department}>{item.department}</Text>
+        </View>
+
+        <View style={styles.statusSection}>
+          <View
+            style={[
+              styles.statusBadge,
+              item.status === "Present"
+                ? styles.presentBadge
+                : styles.absentBadge,
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                item.status === "Present"
+                  ? styles.presentText
+                  : styles.absentText,
+              ]}
+            >
+              {item.status}
+            </Text>
+          </View>
+          <Text style={styles.checkInText}>{item.checkIn}</Text>
+        </View>
+      </View>
+    </Pressable>
+  );
 
   if (loading) {
     return (
@@ -80,50 +151,16 @@ export function AttendanceList() {
   if (error) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Error loading attendance data</Text>
+        <Text style={styles.errorText}>{error}</Text>
       </View>
     );
   }
-
-  const renderItem = ({ item }: { item: Staff }) => (
-    <View style={styles.card}>
-      <View style={styles.cardContent}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>
-            {item.name
-              .split(" ")
-              .map((n) => n[0])
-              .join("")}
-          </Text>
-        </View>
-        <View style={styles.textContainer}>
-          <Text style={styles.name}>{item.name}</Text>
-          <Text style={styles.position}>{item.position}</Text>
-        </View>
-      </View>
-      <View
-        style={[
-          styles.statusBadge,
-          item.present ? styles.presentBadge : styles.absentBadge,
-        ]}
-      >
-        <Text
-          style={[
-            styles.statusText,
-            item.present ? styles.presentText : styles.absentText,
-          ]}
-        >
-          {item.present ? "Present" : "Absent"}
-        </Text>
-      </View>
-    </View>
-  );
 
   return (
     <FlatList
       data={staffList}
       renderItem={renderItem}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => item._id}
       contentContainerStyle={styles.list}
       showsVerticalScrollIndicator={false}
     />
@@ -133,7 +170,6 @@ export function AttendanceList() {
 const styles = StyleSheet.create({
   list: {
     padding: 16,
-    paddingBottom: 100, // Extra padding for bottom tab bar
   },
   card: {
     backgroundColor: "#fff",
@@ -141,65 +177,59 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 0.2,
-    borderWidth: 0.7,
-    borderColor: "grey",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   cardContent: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
   },
-  avatarContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#E3F2FD",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 18,
-    color: "#1976D2",
-    fontWeight: "600",
-  },
-  textContainer: {
+  nameSection: {
     flex: 1,
   },
   name: {
     fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 4,
   },
-  position: {
+  department: {
     fontSize: 14,
-    color: "#666",
+    color: "#6B7280",
+  },
+  statusSection: {
+    alignItems: "flex-end",
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 4,
   },
   presentBadge: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#DEF7EC",
   },
   absentBadge: {
-    backgroundColor: "#FFEBEE",
+    backgroundColor: "#FDE8E8",
   },
   statusText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#1B5E20",
   },
   presentText: {
-    color: "#1B5E20",
+    color: "#057A55",
   },
   absentText: {
-    color: "#B71C1C",
+    color: "#E02424",
+  },
+  checkInText: {
+    fontSize: 12,
+    color: "#6B7280",
   },
   centerContainer: {
     flex: 1,
@@ -207,7 +237,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   errorText: {
-    color: "red",
+    color: "#E02424",
     fontSize: 16,
   },
 });
