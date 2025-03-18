@@ -68,6 +68,52 @@ export function StaffAttendanceTable() {
     }
   };
 
+  const handleMarkPresent = async (staffId, e) => {
+    // Stop propagation to prevent opening QR modal
+    e.stopPropagation();
+    
+    try {
+      // Mark attendance in the backend using the provided endpoint
+      const response = await fetch(`https://absu-girl-project-1.onrender.com/api/attendance`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          staffId: staffId,
+          status: "Present",
+          checkIn: new Date().toLocaleTimeString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to mark attendance");
+      }
+      
+      // Update the staff list to reflect the change
+      setStaffList((currentStaffList) =>
+        currentStaffList.map((person) => {
+          if (person._id === staffId) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString([], { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            });
+            
+            return {
+              ...person,
+              status: "Present",
+              checkIn: timeString,
+            };
+          }
+          return person;
+        })
+      );
+    } catch (error) {
+      console.error("Failed to mark staff present:", error);
+    }
+  };
+
   if (loading) return <div className="text-center p-4">Loading...</div>;
   if (error) return <div className="text-center text-red-500 p-4">{error}</div>;
 
@@ -99,6 +145,9 @@ export function StaffAttendanceTable() {
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">
                 Check In
               </th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white text-base">
@@ -128,6 +177,16 @@ export function StaffAttendanceTable() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-gray-600">
                   {person.checkIn}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {person.status !== "Present" && (
+                    <button
+                      onClick={(e) => handleMarkPresent(person._id, e)}
+                      className="px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+                    >
+                      Mark Present
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
