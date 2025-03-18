@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono, Lato } from "next/font/google";
+import { Lato } from "next/font/google";
 import "./globals.css";
 
 const lato = Lato({
@@ -14,8 +14,28 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${lato.className} antialiased bg-white`}>
-        {children}
+      <body className={`${lato.className} antialiased bg-gray-50`}>
+        <div className="flex min-h-screen">
+          <div className="w-full">
+            <header className="bg-white border-b border-gray-200">
+              <div className="flex items-center justify-between px-6 py-4">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12">
+                    <img
+                      src="/absu-logo.png"
+                      alt="ABSU Logo"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <h1 className="text-xl font-bold text-gray-900">
+                    ABSU Staff Attendance System
+                  </h1>
+                </div>
+              </div>
+            </header>
+            <main className="p-6">{children}</main>
+          </div>
+        </div>
       </body>
     </html>
   );
