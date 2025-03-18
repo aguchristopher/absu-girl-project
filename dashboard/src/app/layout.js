@@ -22,7 +22,7 @@ export default function RootLayout({ children }) {
                 <div className="flex items-center space-x-4">
                   <div className="w-12 h-12">
                     <img
-                      src="/absu-logo.png"
+                      src="/absu-logo.jpg"
                       alt="ABSU Logo"
                       className="w-full h-full object-contain"
                     />
